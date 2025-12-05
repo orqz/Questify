@@ -18,7 +18,7 @@ My socials :) : [Discord](https://discord.gg/orqz)
 
 ## ⚡ Features
 - Creates an `.exe` to imitate the game.  
-- Literally that simple. im ass at coding, either use it or go fuck ur self. 😅
+- Literally that simple. im ass at coding, either use it or go fuck ur self. 🤨
 
 ---
 
