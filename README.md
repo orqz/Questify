@@ -1,6 +1,6 @@
 # Questify 🚀
 
-Questify is the ultimate way to complete **Discord Quests** without even downloading the games! 😎  
+Questify is the most practical way to complete **Discord Quests** without even downloading the games (or owning them🤐)
 
 My socials :) : [Discord](https://discord.gg/orqz)
 
@@ -23,7 +23,7 @@ My socials :) : [Discord](https://discord.gg/orqz)
 ---
 
 ## 🛠 Requirements
-- Python (latest version recommended)  
+- Python (Tested with Python 3.12.10)  
 - [PyInstaller](https://pyinstaller.org/)  
 ```bash
 pip install pyinstaller
