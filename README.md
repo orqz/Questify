@@ -1,6 +1,6 @@
 # Questify 🚀
 
-Questify is the ultimate way to complete **Discord Quests** without even downloading the games! Play smarter, not harder. 😎  
+Questify is the ultimate way to complete **Discord Quests** without even downloading the games! 😎  
 
 My Socials :) : [Discord](https://discord.gg/orqz)
 
