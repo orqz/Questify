@@ -11,7 +11,8 @@ games = {
     "3": "Destiny 2",
     "4": "Storm-Lancers",
     "5": "Where Winds Meet",
-    "6": "Fallout-76"
+    "6": "Fallout-76",
+    "7" : "Terminull Brigade"
 }
 
 game_exe_name = {
@@ -20,7 +21,8 @@ game_exe_name = {
     "Destiny 2": "destiny2",
     "Storm-Lancers": "StormLancersDemo",
     "Where Winds Meet": "wwm",
-    "Fallout-76": "Fallout76"
+    "Fallout-76": "Fallout76",
+    "Terminull Brigade" : "Rouge-Win64-Shipping"
 }
 
 
@@ -39,7 +41,7 @@ print("            QUESTIFY\n")
 
 print("1) Fortnite        | 2) PUBG        | 3) Destiny 2")
 print("4) Storm-Lancers   | 5) Where Winds Meet | 6) Fallout-76")
-
+print ("7) Terminull Brigade  |")
 
 selection = input("\nSelect a game: ")
 
