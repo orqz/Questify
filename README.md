@@ -7,7 +7,8 @@ My socials :) : [Discord](https://discord.gg/orqz)
 ---
 
 ## 😎 How to Use
-- First, check the **Requirements**, PLEASE.  
+- First, check the **Requirements**, PLEASE.
+- Accept the Spesific Quest you wonna complete on discord.
 - Open `Questify.exe`.  
 - Select the game (it might be outdated, but I'll try my best to add the new ones).  
 - Wait for the `.exe` to be compiled.  
