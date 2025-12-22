@@ -1,9 +1,6 @@
 # Questify 🚀
 
 Questify is the most practical way to complete **Discord Quests** without even downloading the games (or owning them🤐)
-
-My socials :) : [Discord](https://discord.gg/orqz)
-
 ---
 
 ## 😎 How to Use
