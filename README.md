@@ -35,6 +35,8 @@ with a matching folder name so Discord detects it as a running game.
 
 - creates an exe
 - creates the folder
+- auto-launches and starts a timer
+- press 7 to reset (moves exe to a new path and relaunches)
 - what else do u expect?
 
 ---
@@ -58,28 +60,30 @@ No setup required. Just download and run.
 
 ---
 
-### Don’t trust the `.exe`? (fair i wouldnt either)
+### Don't trust the `.exe`? (fair i wouldnt either)
 
-You can compile the source yourself using PyInstaller.
+You can compile the source yourself using Nuitka (recommended) or PyInstaller.
 
-### Step 1 — Install dependencies
+### Option A — Nuitka (recommended, less antivirus false positives)
+
+```bash
+pip install nuitka requests
+```
+
+```bash
+python -m nuitka --onefile --output-filename=questify.exe questify.py
+```
+
+### Option B — PyInstaller
 
 ```bash
 pip install requests pyinstaller
 ```
 
-### Step 2 — Build the executable
-
 ```bash
 pyinstaller --onefile questify.py
 ```
 
-### Step 3 — Done
+### Done
 
-Your compiled file will be created here:
-
-```
-dist/questify.exe
-```
-
-Run it like any normal program.
+Your compiled file will be in the output folder. Rename it to `questify.exe` if needed and run it.
