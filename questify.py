@@ -3,15 +3,59 @@ import sys
 import shutil
 import time
 import re
+import random
+import string
+import subprocess
 import requests
 import webbrowser
 import difflib
+import threading
+import msvcrt
+import json
+import tempfile
 
-VERSION = "3.1"
+VERSION = "4.0"
 GITHUB_REPO = "orqz/questify"
 
 url = "https://discord.com/api/applications/detectable"
 gamelist = requests.get(url).json()
+
+SELF_PATH = os.path.abspath(sys.argv[0])
+SELF_DIR = os.path.dirname(SELF_PATH)
+SELF_NAME = os.path.basename(SELF_PATH).lower()
+STATE_FILE = os.path.join(SELF_DIR, ".questify_state")
+
+def random_folder_name():
+    return ''.join(random.choices(string.ascii_lowercase + string.digits, k=10))
+
+def get_random_base_path():
+    bases = [
+        os.path.join(os.environ.get("APPDATA", "C:\\Users"), random_folder_name()),
+        os.path.join(os.environ.get("LOCALAPPDATA", "C:\\Users"), random_folder_name()),
+        os.path.join(os.path.expanduser("~"), "Documents", random_folder_name()),
+        os.path.join(os.path.expanduser("~"), random_folder_name()),
+    ]
+    return random.choice(bases)
+
+def save_state(base_folder, exe_path, safe_name, parts, exe_file):
+    data = {
+        "folder": base_folder,
+        "exe_path": exe_path,
+        "safe_name": safe_name,
+        "parts": parts,
+        "exe_file": exe_file,
+        "launcher": SELF_PATH,
+    }
+    state_path = os.path.join(os.path.dirname(exe_path), ".questify_state")
+    with open(state_path, "w") as f:
+        json.dump(data, f)
+
+def load_state():
+    state_path = os.path.join(SELF_DIR, ".questify_state")
+    if os.path.exists(state_path):
+        with open(state_path, "r") as f:
+            return json.load(f)
+    return None
 
 def check_version():
     try:
@@ -99,13 +143,12 @@ def start_questify():
             print("No Windows executable found.")
             continue
 
-        src = "questify.exe"
-
         safe_name = re.sub(r'[<>:"/\\|?*]', '', selected_name).strip()
         parts = exename.split("/")
         exe_file = parts[-1]
 
-        folder = safe_name
+        rand_base = get_random_base_path()
+        folder = os.path.join(rand_base, safe_name)
         index = 0
         while index < len(parts) - 1:
             folder = os.path.join(folder, parts[index])
@@ -113,24 +156,114 @@ def start_questify():
 
         os.makedirs(folder, exist_ok=True)
         dst = os.path.join(folder, exe_file)
-        shutil.copy(src, dst)
+        shutil.copy(SELF_PATH, dst)
 
-        print("\nInstalled:")
-        print(dst)
-        print("Run this exe to launch Questify.")
-        time.sleep(10)
-        return
+        save_state(rand_base, dst, safe_name, parts, exe_file)
 
-def timer():
+        print(f"\nInstalled to: {dst}")
+        print("Launching and closing this window...")
+
+        subprocess.Popen(
+            [dst],
+            creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+        )
+        time.sleep(0.5)
+        os._exit(0)
+
+def timer_with_reset():
     total = 15 * 60 + 30
+    reset_flag = [False]
+
+    def key_listener():
+        while True:
+            if msvcrt.kbhit():
+                key = msvcrt.getch()
+                if key == b'7':
+                    reset_flag[0] = True
+                    return
+
+    listener = threading.Thread(target=key_listener, daemon=True)
+    listener.start()
+
+    print("\n  Press 7 to reset (close, move, relaunch)\n")
+
     while total > 0:
+        if reset_flag[0]:
+            do_reset()
+            return
+
         m = total // 60
         s = total % 60
-        print(f"\rTime left: {m:02d}:{s:02d}", end="", flush=True)
+        print(f"\rTime left: {m:02d}:{s:02d}  [Press 7 to reset]", end="", flush=True)
         time.sleep(1)
         total = total - 1
-    print("\rTime left: 00:00")
+
+    print("\rTime left: 00:00                        ")
     sys.exit(0)
+
+def do_reset():
+    state = load_state()
+    if state is None:
+        print("\nNo state found, can't reset.")
+        return
+
+    old_base = state["folder"]
+    safe_name = state["safe_name"]
+    parts = state["parts"]
+    exe_file = state["exe_file"]
+
+    new_base = get_random_base_path()
+    while new_base == old_base:
+        new_base = get_random_base_path()
+
+    new_folder = os.path.join(new_base, safe_name)
+    index = 0
+    while index < len(parts) - 1:
+        new_folder = os.path.join(new_folder, parts[index])
+        index = index + 1
+
+    new_exe = os.path.join(new_folder, exe_file)
+
+    new_state = json.dumps({
+        "folder": new_base,
+        "exe_path": new_exe,
+        "safe_name": safe_name,
+        "parts": parts,
+        "exe_file": exe_file,
+        "launcher": state.get("launcher", SELF_PATH),
+    })
+
+    bat_path = os.path.join(tempfile.gettempdir(), f"qr_{random_folder_name()}.bat")
+
+    bat_content = f'''@echo off
+title Questify Reset
+ping 127.0.0.1 -n 3 > nul
+mkdir "{new_folder}"
+copy /Y "{SELF_PATH}" "{new_exe}" > nul
+echo {new_state.replace('"', '^^^"')} > "{os.path.join(new_folder, '.questify_state')}"
+rmdir /S /Q "{old_base}" 2>nul
+start "" "{new_exe}"
+del "%~f0"
+'''
+
+    with open(bat_path, "w") as f:
+        f.write(bat_content)
+
+    print(f"\n\nResetting to: {new_exe}")
+    print("Closing...")
+
+    subprocess.Popen(
+        ["cmd", "/c", bat_path],
+        creationflags=subprocess.CREATE_NO_WINDOW
+    )
+
+    os._exit(0)
+
+def deployed_mode():
+    print(banner)
+    print(f"  Running as: {SELF_NAME}")
+    print(f"  Location:   {SELF_DIR}\n")
+    timer_with_reset()
 
 banner = r"""
                               __           ___
@@ -145,7 +278,9 @@ banner = r"""
                      >> github.com/orqz <<
 """
 
-if os.path.exists("questify.exe"):
+is_launcher = SELF_NAME == "questify.exe"
+
+if is_launcher:
     menu()
 else:
-    timer()
+    deployed_mode()
