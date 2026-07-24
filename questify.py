@@ -3,8 +3,6 @@ import sys
 import shutil
 import time
 import re
-import random
-import string
 import subprocess
 import requests
 import webbrowser
@@ -12,9 +10,8 @@ import difflib
 import threading
 import msvcrt
 import json
-import tempfile
 
-VERSION = "4.0"
+VERSION = "4.1"
 GITHUB_REPO = "orqz/questify"
 
 url = "https://discord.com/api/applications/detectable"
@@ -23,39 +20,58 @@ gamelist = requests.get(url).json()
 SELF_PATH = os.path.abspath(sys.argv[0])
 SELF_DIR = os.path.dirname(SELF_PATH)
 SELF_NAME = os.path.basename(SELF_PATH).lower()
-STATE_FILE = os.path.join(SELF_DIR, ".questify_state")
 
-def random_folder_name():
-    return ''.join(random.choices(string.ascii_lowercase + string.digits, k=10))
+QUESTIFY_HOME = os.path.join(
+    os.environ.get("LOCALAPPDATA", os.path.expanduser("~")),
+    "Questify", "games"
+)
 
-def get_random_base_path():
-    bases = [
-        os.path.join(os.environ.get("APPDATA", "C:\\Users"), random_folder_name()),
-        os.path.join(os.environ.get("LOCALAPPDATA", "C:\\Users"), random_folder_name()),
-        os.path.join(os.path.expanduser("~"), "Documents", random_folder_name()),
-        os.path.join(os.path.expanduser("~"), random_folder_name()),
-    ]
-    return random.choice(bases)
+def get_slot_path(slot):
+    return os.path.join(QUESTIFY_HOME, f"slot_{slot}")
 
-def save_state(base_folder, exe_path, safe_name, parts, exe_file):
+def build_game_folder(base, safe_name, parts):
+    folder = os.path.join(base, safe_name)
+    index = 0
+    while index < len(parts) - 1:
+        folder = os.path.join(folder, parts[index])
+        index = index + 1
+    return folder
+
+def save_state(base_folder, exe_path, safe_name, parts, exe_file, slot):
     data = {
+        "app": "Questify",
+        "version": VERSION,
         "folder": base_folder,
         "exe_path": exe_path,
         "safe_name": safe_name,
         "parts": parts,
         "exe_file": exe_file,
         "launcher": SELF_PATH,
+        "slot": slot,
     }
-    state_path = os.path.join(os.path.dirname(exe_path), ".questify_state")
+    state_path = os.path.join(os.path.dirname(exe_path), "questify_config.json")
     with open(state_path, "w") as f:
-        json.dump(data, f)
+        json.dump(data, f, indent=2)
 
 def load_state():
-    state_path = os.path.join(SELF_DIR, ".questify_state")
+    state_path = os.path.join(SELF_DIR, "questify_config.json")
     if os.path.exists(state_path):
         with open(state_path, "r") as f:
             return json.load(f)
     return None
+
+def cleanup_previous():
+    cleanup_path = os.path.join(SELF_DIR, "questify_cleanup.txt")
+    if not os.path.exists(cleanup_path):
+        return
+    try:
+        with open(cleanup_path, "r") as f:
+            old_folder = f.read().strip()
+        if old_folder and os.path.isdir(old_folder) and os.path.normpath(old_folder) != os.path.normpath(SELF_DIR):
+            shutil.rmtree(old_folder, ignore_errors=True)
+        os.remove(cleanup_path)
+    except Exception:
+        pass
 
 def check_version():
     try:
@@ -74,13 +90,13 @@ def menu():
     print(banner)
     check_version()
     print(" [1] Start Questify")
-    print(" [2] Discord Server")
+    print(" [2] Star the Repo")
     print(" [3] Exit")
     choice = input("> ")
     if choice == "1":
         start_questify()
     elif choice == "2":
-        webbrowser.open_new_tab("https://discord.gg/vRFXc3pvt4")
+        webbrowser.open_new_tab(f"https://github.com/{GITHUB_REPO}")
     elif choice == "3":
         sys.exit(0)
 
@@ -147,28 +163,28 @@ def start_questify():
         parts = exename.split("/")
         exe_file = parts[-1]
 
-        rand_base = get_random_base_path()
-        folder = os.path.join(rand_base, safe_name)
-        index = 0
-        while index < len(parts) - 1:
-            folder = os.path.join(folder, parts[index])
-            index = index + 1
+        slot = 0
+        base = get_slot_path(slot)
+        folder = build_game_folder(base, safe_name, parts)
 
         os.makedirs(folder, exist_ok=True)
         dst = os.path.join(folder, exe_file)
+        if os.path.exists(dst):
+            try:
+                os.remove(dst)
+            except PermissionError:
+                shutil.rmtree(os.path.dirname(dst), ignore_errors=True)
+                os.makedirs(folder, exist_ok=True)
         shutil.copy(SELF_PATH, dst)
 
-        save_state(rand_base, dst, safe_name, parts, exe_file)
+        save_state(base, dst, safe_name, parts, exe_file, slot)
 
         print(f"\nInstalled to: {dst}")
         print("Launching and closing this window...")
 
-        subprocess.Popen(
-            [dst],
-            creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
-        )
+        subprocess.Popen([dst], creationflags=subprocess.CREATE_NEW_CONSOLE)
         time.sleep(0.5)
-        os._exit(0)
+        sys.exit(0)
 
 def timer_with_reset():
     total = 15 * 60 + 30
@@ -211,55 +227,37 @@ def do_reset():
     safe_name = state["safe_name"]
     parts = state["parts"]
     exe_file = state["exe_file"]
+    old_slot = state.get("slot", 0)
 
-    new_base = get_random_base_path()
-    while new_base == old_base:
-        new_base = get_random_base_path()
+    new_slot = (old_slot + 1) % 10
+    new_base = get_slot_path(new_slot)
 
-    new_folder = os.path.join(new_base, safe_name)
-    index = 0
-    while index < len(parts) - 1:
-        new_folder = os.path.join(new_folder, parts[index])
-        index = index + 1
-
+    new_folder = build_game_folder(new_base, safe_name, parts)
+    os.makedirs(new_folder, exist_ok=True)
     new_exe = os.path.join(new_folder, exe_file)
 
-    new_state = json.dumps({
-        "folder": new_base,
-        "exe_path": new_exe,
-        "safe_name": safe_name,
-        "parts": parts,
-        "exe_file": exe_file,
-        "launcher": state.get("launcher", SELF_PATH),
-    })
+    if os.path.exists(new_exe):
+        try:
+            os.remove(new_exe)
+        except PermissionError:
+            shutil.rmtree(os.path.dirname(new_exe), ignore_errors=True)
+            os.makedirs(new_folder, exist_ok=True)
+    shutil.copy(SELF_PATH, new_exe)
+    save_state(new_base, new_exe, safe_name, parts, exe_file, new_slot)
 
-    bat_path = os.path.join(tempfile.gettempdir(), f"qr_{random_folder_name()}.bat")
-
-    bat_content = f'''@echo off
-title Questify Reset
-ping 127.0.0.1 -n 3 > nul
-mkdir "{new_folder}"
-copy /Y "{SELF_PATH}" "{new_exe}" > nul
-echo {new_state.replace('"', '^^^"')} > "{os.path.join(new_folder, '.questify_state')}"
-rmdir /S /Q "{old_base}" 2>nul
-start "" "{new_exe}"
-del "%~f0"
-'''
-
-    with open(bat_path, "w") as f:
-        f.write(bat_content)
+    cleanup_path = os.path.join(new_folder, "questify_cleanup.txt")
+    with open(cleanup_path, "w") as f:
+        f.write(old_base)
 
     print(f"\n\nResetting to: {new_exe}")
     print("Closing...")
 
-    subprocess.Popen(
-        ["cmd", "/c", bat_path],
-        creationflags=subprocess.CREATE_NO_WINDOW
-    )
-
-    os._exit(0)
+    subprocess.Popen([new_exe], creationflags=subprocess.CREATE_NEW_CONSOLE)
+    time.sleep(0.5)
+    sys.exit(0)
 
 def deployed_mode():
+    cleanup_previous()
     print(banner)
     print(f"  Running as: {SELF_NAME}")
     print(f"  Location:   {SELF_DIR}\n")
